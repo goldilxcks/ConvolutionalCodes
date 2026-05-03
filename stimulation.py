@@ -1,34 +1,59 @@
+"""Simulation of convolutional code with AWGN channel."""
 import random
+import math
 import matplotlib.pyplot as plt
+
 from coder import Coder
 from decoder import Decoder
 
 
-def add_errors(bits, error_probability=0.1):
-    """Фуекція яка рандомно додає помилки"""
+def add_awgn(bits, snr_db):
+    """Adds AWGN noise to bits and returns received hard bits."""
     result = []
+
+    snr_linear = 10 ** (snr_db / 10)
+    sigma = math.sqrt(1 / (2 * snr_linear))
+
     for bit in bits:
-        if random.random() < error_probability:
-            result.append(1 - bit)
+        signal = 1 if bit == 1 else -1
+
+        noise = random.gauss(0, sigma)
+        noisy_signal = signal + noise
+
+        if noisy_signal > 0:
+            result.append(1)
         else:
-            result.append(bit)
+            result.append(0)
+
     return result
 
 
 def ber(original, decoded):
-    errors = sum(a != b for a, b in zip(original, decoded))
+    """Counts bit error rate."""
+    errors = 0
+
+    for bit1, bit2 in zip(original, decoded):
+        if bit1 != bit2:
+            errors += 1
+
     return errors / len(original)
 
 
-def simulate(error_probability, msg_len=100, tests=100):
+def simulate_coded(snr_db, msg_len=100, tests=100):
+    """Simulates coded transmission through AWGN channel."""
     coder = Coder()
     decoder = Decoder()
+
     total_ber = 0
 
     for _ in range(tests):
-        msg = [random.randint(0, 1) for _ in range(msg_len)]
+        msg = []
+
+        for _ in range(msg_len):
+            msg.append(random.randint(0, 1))
+
         encoded = coder.encode(msg)
-        damaged = add_errors(encoded, error_probability)
+        damaged = add_awgn(encoded, snr_db)
         decoded = decoder.decode(damaged)
 
         total_ber += ber(msg, decoded)
@@ -36,12 +61,17 @@ def simulate(error_probability, msg_len=100, tests=100):
     return total_ber / tests
 
 
-def simulate_uncoded(error_probability, msg_len=100, tests=100):
+def simulate_uncoded(snr_db, msg_len=100, tests=100):
+    """Simulates uncoded transmission through AWGN channel."""
     total_ber = 0
 
     for _ in range(tests):
-        msg = [random.randint(0, 1) for _ in range(msg_len)]
-        damaged = add_errors(msg, error_probability)
+        msg = []
+
+        for _ in range(msg_len):
+            msg.append(random.randint(0, 1))
+
+        damaged = add_awgn(msg, snr_db)
 
         total_ber += ber(msg, damaged)
 
@@ -49,17 +79,26 @@ def simulate_uncoded(error_probability, msg_len=100, tests=100):
 
 
 if __name__ == "__main__":
-    error_probs = [0.01, 0.03, 0.05, 0.1, 0.15, 0.2]
+    snr_values = [-2, 0, 1, 2, 3, 4, 5, 6]
+
     coded = []
     uncoded = []
-    for p in error_probs:
-        coded.append(simulate(p))
-        uncoded.append(simulate_uncoded(p))
-    plt.plot(error_probs, coded, marker='o', label='coded')
-    plt.plot(error_probs, uncoded, marker='o', label='uncoded')
 
-    plt.xlabel("error probability")
+    for snr in snr_values:
+        coded_ber = simulate_coded(snr)
+        uncoded_ber = simulate_uncoded(snr)
+
+        coded.append(coded_ber)
+        uncoded.append(uncoded_ber)
+
+        print(f"SNR = {snr} dB | coded BER = {coded_ber} | uncoded BER = {uncoded_ber}")
+
+    plt.plot(snr_values, coded, marker="o", label="coded")
+    plt.plot(snr_values, uncoded, marker="o", label="uncoded")
+
+    plt.xlabel("SNR, dB")
     plt.ylabel("BER")
+    plt.title("BER vs SNR for AWGN channel")
     plt.legend()
     plt.grid()
     plt.show()
