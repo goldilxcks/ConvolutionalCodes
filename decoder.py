@@ -1,33 +1,53 @@
-class Coder:
+from coder import Coder
+
+
+class Decoder:
     def __init__(self):
-        self.shift = 3
-        self.num_states = 4
-        self.transition_table = self.build_table()
+        self.coder = Coder()
+        self.table = self.coder.transition_table
+        self.num_states = self.coder.num_states
+        self.shift = self.coder.shift
 
-    def build_table(self):
-        table = {}
-        for state in range(self.num_states):
-            for bit in [0, 1]:
-                next_state = (bit << 1) | (state >> 1)
-                reg = [bit, (state >> 1) & 1, state & 1]
-                out1 = reg[0] ^ reg[1] ^ reg[2]
-                out2 = reg[1] ^ reg[2]
-                out3 = reg[0] ^ reg[2]
-                table[(state, bit)] = (next_state, (out1, out2, out3))
-        return table
+        self.reverse_table = {s: [] for s in range(self.num_states)}
+        for (state, bit), (next_state, out_bits) in self.table.items():
+            self.reverse_table[next_state].append((state, bit, out_bits))
 
-    def encode(self, bits):
-        bits_full = bits + [0] * (self.shift - 1)
-        result = []
-        state = 0
-        for b in bits_full:
-            next_state, out_bits = self.transition_table[(state, b)]
-            result.extend(out_bits)
-            state = next_state
-        return result
+    def hamming(self, a, b):
+        return sum(x != y for x, y in zip(a, b))
+
+    def decode(self, received: list[int]) -> list[int]:
+        num_steps = len(received) // 3
+        msg_len = num_steps - (self.shift - 1)   
+
+        INF = float('inf')
+
+        path_metric = {s: (INF, []) for s in range(self.num_states)}
+        path_metric[0] = (0, [])   
+        for step in range(num_steps):
+            rx = tuple(received[step * 3: step * 3 + 3])
+            new_metric = {s: (INF, []) for s in range(self.num_states)}
+
+            for state in range(self.num_states):
+                curr_m, curr_path = path_metric[state]
+                if curr_m == INF:
+                    continue
+
+                for bit in (0, 1):
+                    next_state, out_bits = self.table[(state, bit)]
+                    cost = curr_m + self.hamming(rx, out_bits)
+
+                    if cost < new_metric[next_state][0]:
+                        new_metric[next_state] = (cost, curr_path + [bit])
+
+            path_metric = new_metric
+
+        best_metric, best_path = path_metric[0]
+        return best_path[:msg_len]
+
+
 
 coder = Coder()
 msg = [1, 0, 1, 1]
 encoded = coder.encode(msg)
-print(f"Початкове повідомлення: {msg}")
-print(f"Закодоване: {encoded}")
+decoder = Decoder()
+print(decoder.decode(encoded))
