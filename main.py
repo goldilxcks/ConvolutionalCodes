@@ -1,0 +1,161 @@
+import argparse
+import time
+import os
+import heapq
+from collections import Counter
+
+from coder import Coder
+from decoder import Decoder
+
+class HeapNode:
+    def __init__(self, sym, freq):
+        self.sym = sym
+        self.freq = freq
+        self.left = None
+        self.right = None
+
+    def __lt__(self, other):
+        return self.freq < other.freq
+
+def build_huffman_codes(prob_dict):
+    """
+    prob_dict: symbol->probability (all >0)
+    returns: codes dict symbol->bitstring
+    """
+    heap = []
+    for sym, p in prob_dict.items():
+        heapq.heappush(heap, HeapNode(sym, p))
+    
+    if len(heap) == 1:
+        only = heapq.heappop(heap)
+        return {only.sym: "0"}
+    
+    while len(heap) > 1:
+        n1 = heapq.heappop(heap)
+        n2 = heapq.heappop(heap)
+        merged = HeapNode(None, n1.freq + n2.freq)
+        merged.left = n1
+        merged.right = n2
+        heapq.heappush(heap, merged)
+        
+    root = heapq.heappop(heap)
+    codes = {}
+    
+    def dfs(node, code):
+        if node is None:
+            return
+        if node.sym is not None:
+            codes[node.sym] = code
+            return
+        dfs(node.left, code + "0")
+        dfs(node.right, code + "1")
+        
+    dfs(root, "")
+    return codes
+
+
+def file_to_bits(file_path):
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    bits = []
+    for byte in data:
+        for i in range(7, -1, -1):
+            bits.append((byte >> i) & 1)
+    return bits
+
+def bits_to_file(bits, file_path):
+    bytes_array = bytearray()
+    for i in range(0, len(bits), 8):
+        byte = 0
+        for bit in bits[i:i+8]:
+            byte = (byte << 1) | bit
+        bytes_array.append(byte)
+    with open(file_path, 'wb') as f:
+        f.write(bytes_array)
+
+def huffman_encode_file(file_path):
+    with open(file_path, 'rb') as f:
+        data = f.read()
+    
+    if not data:
+        return b'', {}
+        
+    counts = Counter(data)
+    total = len(data)
+    prob_dict = {byte: count / total for byte, count in counts.items()}
+    codes = build_huffman_codes(prob_dict)
+    
+    bitstring = "".join(codes[byte] for byte in data)
+    
+    padding_length = 8 - (len(bitstring) % 8)
+    if padding_length == 8:
+        padding_length = 0
+    bitstring += "0" * padding_length
+    
+    encoded_bytes = bytearray()
+    for i in range(0, len(bitstring), 8):
+        byte = int(bitstring[i:i+8], 2)
+        encoded_bytes.append(byte)
+        
+    return encoded_bytes, {'codes': codes, 'padding': padding_length}
+
+def compare_performance(file_path):
+    print(f"--- Аналіз файлу: {file_path} ---")
+    original_size = os.path.getsize(file_path)
+    print(f"Початковий розмір: {original_size} байт")
+    
+    start_time = time.time()
+    encoded_huff, metadata = huffman_encode_file(file_path)
+    huff_enc_time = time.time() - start_time
+    huffman_size = len(encoded_huff)
+    
+    print("\n[Блокове кодування - Huffman]")
+    print(f"Час кодування: {huff_enc_time:.4f} секунд")
+    print(f"Розмір після кодування: {huffman_size} байт")
+    print(f"Відношення: {(huffman_size/original_size)*100:.2f}% від оригіналу")
+    
+    coder = Coder()
+    decoder = Decoder()
+    
+    start_time = time.time()
+    bits = file_to_bits(file_path)
+    encoded_conv_bits = coder.encode(bits)
+    conv_enc_time = time.time() - start_time
+    conv_size = len(encoded_conv_bits) // 8
+    
+    print("\n[Конволюційне кодування - Rate 1/3]")
+    print(f"Час кодування: {conv_enc_time:.4f} секунд")
+    print(f"Розмір після кодування: {conv_size} байт")
+    print(f"Відношення: {(conv_size/original_size)*100:.2f}% від оригіналу")
+
+    start_time = time.time()
+    decoded_conv_bits = decoder.decode(encoded_conv_bits)
+    conv_dec_time = time.time() - start_time
+    print(f"Час декодування Вітербі: {conv_dec_time:.4f} секунд")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Порівняння Блокового та Конволюційного кодування.")
+    parser.add_argument("mode", choices=["compare", "encode_conv", "decode_conv"], help="Режим роботи")
+    parser.add_argument("input", help="Шлях до вхідного файлу")
+    parser.add_argument("-o", "--output", help="Шлях до вихідного файлу (для encode/decode)", default="output.bin")
+    
+    args = parser.parse_args()
+    
+    if args.mode == "compare":
+        compare_performance(args.input)
+        
+    elif args.mode == "encode_conv":
+        print("Кодуємо конволюційним алгоритмом...")
+        coder = Coder()
+        bits = file_to_bits(args.input)
+        encoded = coder.encode(bits)
+        bits_to_file(encoded, args.output)
+        print(f"Готово. Збережено у {args.output}")
+        
+    elif args.mode == "decode_conv":
+        print("Декодуємо конволюційним алгоритмом (алгоритм Вітербі)...")
+        decoder = Decoder()
+        encoded_bits = file_to_bits(args.input)
+        decoded = decoder.decode(encoded_bits)
+        bits_to_file(decoded, args.output)
+        print(f"Готово. Відновлено у {args.output}")
