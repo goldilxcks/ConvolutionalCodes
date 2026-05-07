@@ -1,11 +1,14 @@
 class Coder:
     def __init__(self):
+        #кількість бітів у регістрі пам'яті - наш зсув
         self.shift = 3
+        # кількість можливих станів пам'яті декодера (2^(K-1) = 2^2 = 4 = 00 01 10 11
         self.num_states = 4
         self.transition_table = self.build_table()
 
     def build_table(self):
         table = {}
+        #проходимо крізь усі можливі стани (від 00 до 11 у двійковій системі)
         for state in range(self.num_states):
             for bit in [0, 1]:
                 next_state = (bit << 1) | (state >> 1)
@@ -25,9 +28,3 @@ class Coder:
             result.extend(out_bits)
             state = next_state
         return result
-
-coder = Coder()
-msg = [1, 0, 1, 1]
-encoded = coder.encode(msg)
-print(f"Початкове повідомлення: {msg}")
-print(f"Закодоване: {encoded}")
