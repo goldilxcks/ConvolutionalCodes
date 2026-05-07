@@ -1,8 +1,6 @@
 class Coder:
     def __init__(self):
-        #кількість бітів у регістрі пам'яті - наш зсув
         self.shift = 3
-        # кількість можливих станів пам'яті декодера (2^(K-1) = 2^2 = 4 = 00 01 10 11
         self.num_states = 4
         self.transition_table = self.build_table()
 

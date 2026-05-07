@@ -43,13 +43,7 @@ class Decoder:
             metrics = new_metrics
             predecessors.append(pred)
             decided_bits.append(bits)
-        # state = 0
-        # decoded = []
-        # for step in range(num_steps - 1, -1, -1):
-        #     bit = decided_bits[step][state]
-        #     decoded.append(bit)
-        #     state = predecessors[step][state]
-        # decoded.reverse()
+
         state = metrics.index(min(metrics))
         decoded = []
         for step in range(num_steps - 1, -1, -1):

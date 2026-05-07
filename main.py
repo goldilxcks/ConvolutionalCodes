@@ -16,7 +16,6 @@ class HeapNode:
 
     def __lt__(self, other):
         return self.freq < other.freq
-
 def build_huffman_codes(prob_dict):
     """
     prob_dict: symbol->probability (all >0)

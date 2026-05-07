@@ -7,7 +7,7 @@ from decoder import Decoder
 
 
 def add_awgn(bits, snr_db):
-    """Adds AWGN noise to bits and returns received hard bits."""
+    """Adds AWGN noise to bits and returns received bits."""
     result = []
     snr_linear = 10 ** (snr_db / 10)
     sigma = math.sqrt(1 / (2 * snr_linear))
